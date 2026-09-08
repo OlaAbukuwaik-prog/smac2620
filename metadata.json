@@ -1,0 +1,8 @@
+{
+  "name": "Silah",
+  "description": "Connecting families through understanding - Mobile family-connection and communication application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
