@@ -95,8 +95,13 @@ export const AssistantModal: React.FC<AssistantModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center">
-              <Bot className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-xl overflow-hidden shadow-xs border border-purple-200 bg-purple-950 flex items-center justify-center shrink-0">
+              <img
+                src="/app-logo.png"
+                alt="Logo"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900">AI Family Assistant</h2>

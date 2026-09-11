@@ -253,13 +253,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       </section>
 
       {/* App Version & Mission Quote */}
-      <section className="text-center py-2 space-y-1">
-        <p className="text-[11px] text-purple-900 font-medium italic">
-          "Silah doesn't replace family conversations. It helps families have them."
-        </p>
-        <p className="text-[10px] text-slate-400">
-          Silah v1.0 • Android Mobile Edition • Google ML Kit On-Device AI
-        </p>
+      <section className="text-center py-4 space-y-2 flex flex-col items-center">
+        <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md border border-purple-200 bg-purple-950 flex items-center justify-center">
+          <img
+            src="/app-logo.png"
+            alt="Silah App Logo"
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-xs font-bold text-slate-800">Silah صلة</p>
+          <p className="text-[11px] text-purple-900 font-medium italic">
+            "Silah doesn't replace family conversations. It helps families have them."
+          </p>
+          <p className="text-[10px] text-slate-400">
+            Silah v1.0 • Android Mobile Edition
+          </p>
+        </div>
       </section>
     </div>
   );

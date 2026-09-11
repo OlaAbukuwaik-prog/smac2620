@@ -395,13 +395,18 @@ export const GoogleSignInScreen: React.FC<GoogleSignInScreenProps> = ({
       {/* Main Container Card */}
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-purple-100/80 overflow-hidden">
         {/* Top App Header */}
-        <div className="px-6 pt-6 pb-4 text-center space-y-1 border-b border-slate-100">
-          <div className="w-12 h-12 rounded-2xl bg-purple-700 text-white flex items-center justify-center mx-auto shadow-md shadow-purple-600/20 mb-2">
-            <Heart className="w-6 h-6 fill-white" />
+        <div className="px-6 pt-6 pb-4 text-center space-y-1.5 border-b border-slate-100">
+          <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto shadow-lg shadow-purple-600/30 mb-2 border border-purple-200 bg-purple-950 flex items-center justify-center">
+            <img
+              src="/app-logo.png"
+              alt="App Logo"
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <h1 className="text-xl font-black text-slate-900 tracking-tight">Silah</h1>
           <p className="text-xs text-slate-500 font-medium">
-            Peaceful Family Connection & Safe Haven
+            Family Harmony & Understanding Hub
           </p>
         </div>
 
