@@ -55,14 +55,10 @@ export const SafeConnectBridgeModal: React.FC<SafeConnectBridgeModalProps> = ({
   // 5: Kid Emotional Relief & Harmony Boost
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
-  // Kid input state
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('failed-exam');
-  const [kidProblemText, setKidProblemText] = useState<string>(
-    PRESET_TROUBLE_SCENARIOS[0].kidInput
-  );
-  const [kidFearText, setKidFearText] = useState<string>(
-    PRESET_TROUBLE_SCENARIOS[0].kidFear
-  );
+  // Kid input state (clean for real users)
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('');
+  const [kidProblemText, setKidProblemText] = useState<string>('');
+  const [kidFearText, setKidFearText] = useState<string>('');
 
   // Recipient parent options
   const parentMembers = allMembers.filter((m) => m.role === 'Parent');
@@ -712,7 +708,7 @@ export const SafeConnectBridgeModal: React.FC<SafeConnectBridgeModalProps> = ({
                   }}
                   className="flex-1 py-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all"
                 >
-                  Test Another Scenario
+                  Bridge Another Topic
                 </button>
 
                 <button

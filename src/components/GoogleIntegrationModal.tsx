@@ -42,7 +42,7 @@ export const GoogleIntegrationModal: React.FC<GoogleIntegrationModalProps> = ({
     setIsSyncing(true);
     setTimeout(() => {
       setIsSyncing(false);
-      setSyncSuccessMsg('Successfully synced 4 family calendars with Google Calendar API.');
+      setSyncSuccessMsg(`Successfully synced ${allMembers.length} family calendars with Google Calendar API.`);
       setTimeout(() => setSyncSuccessMsg(''), 3500);
     }, 1200);
   };
@@ -142,7 +142,7 @@ export const GoogleIntegrationModal: React.FC<GoogleIntegrationModalProps> = ({
           {/* 4 Synced Family Members Accounts */}
           <div className="space-y-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Synced Family Google Calendars (4 Active):
+              Synced Family Google Calendars ({allMembers.length} Active):
             </span>
 
             <div className="space-y-1.5">

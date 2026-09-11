@@ -20,8 +20,11 @@ import { FamilyMember, Family } from '../types';
 interface FamilyAdminSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  family: Family;
-  allMembers: FamilyMember[];
+  family?: Family;
+  allMembers?: FamilyMember[];
+  currentMembers?: FamilyMember[];
+  adminEmail?: string;
+  adminName?: string;
   onAddMember: (newMember: Partial<FamilyMember>) => void;
   onSwitchToFather: () => void;
 }
@@ -31,12 +34,16 @@ export const FamilyAdminSetupModal: React.FC<FamilyAdminSetupModalProps> = ({
   onClose,
   family,
   allMembers,
+  currentMembers,
+  adminEmail,
+  adminName,
   onAddMember,
   onSwitchToFather,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [fatherEmail] = useState('lovelyspurelove@gmail.com');
-  const [fatherName] = useState('Father (Parent)');
+  const effectiveMembers = allMembers || currentMembers || [];
+  const displayEmail = adminEmail || 'lovelyspurelove@gmail.com';
+  const displayName = adminName || 'Father (Parent)';
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<'Parent' | 'Teenager' | 'Child'>('Teenager');
   const [newMemberEmail, setNewMemberEmail] = useState('');
@@ -145,13 +152,13 @@ export const FamilyAdminSetupModal: React.FC<FamilyAdminSetupModalProps> = ({
                   Active Session
                 </span>
               </div>
-              <h3 className="text-sm font-bold">{fatherName}</h3>
+              <h3 className="text-sm font-bold">{displayName}</h3>
               <div className="flex items-center gap-1.5 text-xs text-purple-200 font-mono">
                 <Mail className="w-3.5 h-3.5" />
-                <span>{fatherEmail}</span>
+                <span>{displayEmail}</span>
               </div>
               <p className="text-[11px] text-purple-200 pt-1">
-                As the father and primary account creator, you and the mother have guardian control.
+                As the primary account administrator, you and family guardians have parental control.
                 You receive de-escalated communication alerts and manage family schedules.
               </p>
             </div>
@@ -182,7 +189,7 @@ export const FamilyAdminSetupModal: React.FC<FamilyAdminSetupModalProps> = ({
           <div className="space-y-3.5">
             <div className="space-y-1">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Current Family Roster ({allMembers.length} Members)
+                Current Family Roster ({effectiveMembers.length} Members)
               </h3>
               <p className="text-[11px] text-slate-500">
                 Parents are in control; kids receive the comforting Safe Haven AI screen.
@@ -191,7 +198,7 @@ export const FamilyAdminSetupModal: React.FC<FamilyAdminSetupModalProps> = ({
 
             {/* List of members */}
             <div className="space-y-2">
-              {allMembers.map((member) => (
+              {effectiveMembers.map((member) => (
                 <div
                   key={member.id}
                   className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"

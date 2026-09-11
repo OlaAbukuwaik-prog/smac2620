@@ -14,6 +14,9 @@ import {
   ExternalLink,
   Bot,
   Sparkles,
+  LogOut,
+  Settings,
+  Heart,
 } from 'lucide-react';
 import { FamilyMember, Family } from '../types';
 
@@ -25,6 +28,9 @@ interface ProfileScreenProps {
   onOpenMLKitReport: () => void;
   onOpenMoodHistory: () => void;
   onUpdatePrivacy: (newSettings: FamilyMember['privacySettings']) => void;
+  onOpenAdminModal?: () => void;
+  onOpenParentGuide?: () => void;
+  onSignOut?: () => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
@@ -35,6 +41,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenMLKitReport,
   onOpenMoodHistory,
   onUpdatePrivacy,
+  onOpenAdminModal,
+  onOpenParentGuide,
+  onSignOut,
 }) => {
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -94,6 +103,33 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       {/* Profile Sections List */}
       <section className="bg-white rounded-2xl shadow-sm border border-purple-100 overflow-hidden divide-y divide-slate-100">
+        {/* Parent Guide (Visible ONLY in the parents profile) */}
+        {activeMember.role === 'Parent' && onOpenParentGuide && (
+          <button
+            id="profile-parent-guide-btn"
+            onClick={onOpenParentGuide}
+            className="w-full p-3.5 text-left flex items-center justify-between hover:bg-amber-50/60 transition-colors bg-amber-50/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>Parent Guidance & De-escalation Hub</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-purple-950 font-bold">
+                    Parents Only
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Ways to treat your child calmly with love, scripts, and no anger
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400" />
+          </button>
+        )}
+
         {/* 1. My Mood */}
         <button
           id="profile-my-mood-btn"
@@ -174,6 +210,46 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </div>
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </button>
+
+        {/* 5. Family Admin & Role Control */}
+        {onOpenAdminModal && (
+          <button
+            id="profile-admin-setup-btn"
+            onClick={onOpenAdminModal}
+            className="w-full p-3.5 text-left flex items-center justify-between hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+                <Settings className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-800">Family Admin & Roster Setup</div>
+                <div className="text-[10px] text-slate-400">Manage guardian controls and add members</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400" />
+          </button>
+        )}
+
+        {/* 6. Sign Out / Switch Account */}
+        {onSignOut && (
+          <button
+            id="profile-signout-btn"
+            onClick={onSignOut}
+            className="w-full p-3.5 text-left flex items-center justify-between hover:bg-rose-50/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <LogOut className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-rose-600">Sign Out / Switch Family</div>
+                <div className="text-[10px] text-slate-400">Return to Google sign-in & hub choice</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-rose-300" />
+          </button>
+        )}
       </section>
 
       {/* App Version & Mission Quote */}

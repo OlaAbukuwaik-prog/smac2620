@@ -7,6 +7,10 @@ interface FamilyMemojiAvatarProps {
   moodBadge?: 'happy' | 'neutral' | 'calm' | 'sad';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  customAvatarIcon?: string;
+  customAvatarType?: 'memoji' | 'emoji' | 'initials';
+  customMemojiPreset?: 'dad' | 'mom' | 'teen' | 'child';
+  avatarColor?: string;
 }
 
 export const FamilyMemojiAvatar: React.FC<FamilyMemojiAvatarProps> = ({
@@ -16,18 +20,30 @@ export const FamilyMemojiAvatar: React.FC<FamilyMemojiAvatarProps> = ({
   moodBadge = 'happy',
   size = 'md',
   className = '',
+  customAvatarIcon,
+  customAvatarType = 'memoji',
+  customMemojiPreset,
+  avatarColor,
 }) => {
   const sizeMap = {
-    sm: 'w-10 h-10',
-    md: 'w-14 h-14',
-    lg: 'w-18 h-18',
+    sm: 'w-10 h-10 text-base',
+    md: 'w-14 h-14 text-2xl',
+    lg: 'w-18 h-18 text-3xl',
   };
 
-  // Determine avatar character based on memberId or role/name
-  const isDad = memberId === 'm-dad' || memberId === 'm-father' || (role === 'Parent' && (name.toLowerCase().includes('father') || name.toLowerCase().includes('dad')));
-  const isMom = memberId === 'm-mom' || memberId === 'm-mother' || (role === 'Parent' && (name.toLowerCase().includes('mother') || name.toLowerCase().includes('mom')));
-  const isTeen = memberId === 'm-teen' || memberId === 'm-sarah' || role === 'Teenager';
-  const isChild = memberId === 'm-child' || memberId === 'm-brother' || role === 'Child' || (!isDad && !isMom && !isTeen);
+  // Determine avatar character based on presets or role/name
+  const isDad =
+    customMemojiPreset === 'dad' ||
+    (!customMemojiPreset && (memberId === 'm-dad' || memberId === 'm-father' || (role === 'Parent' && (name.toLowerCase().includes('father') || name.toLowerCase().includes('dad')))));
+  const isMom =
+    customMemojiPreset === 'mom' ||
+    (!customMemojiPreset && (memberId === 'm-mom' || memberId === 'm-mother' || (role === 'Parent' && (name.toLowerCase().includes('mother') || name.toLowerCase().includes('mom')))));
+  const isTeen =
+    customMemojiPreset === 'teen' ||
+    (!customMemojiPreset && (memberId === 'm-teen' || role === 'Teenager'));
+  const isChild =
+    customMemojiPreset === 'child' ||
+    (!customMemojiPreset && !isDad && !isMom && !isTeen);
 
   // Badge emoji & background color
   const badgeConfig = {
@@ -39,10 +55,12 @@ export const FamilyMemojiAvatar: React.FC<FamilyMemojiAvatarProps> = ({
 
   return (
     <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
-      {/* Outer circular container with pastel background */}
+      {/* Outer circular container with custom or pastel background */}
       <div
-        className={`${sizeMap[size]} rounded-full flex items-center justify-center overflow-hidden border-2 border-white shadow-sm ${
-          isDad
+        className={`${sizeMap[size]} rounded-full flex items-center justify-center overflow-hidden border-2 border-white shadow-sm transition-transform hover:scale-105 ${
+          avatarColor
+            ? avatarColor
+            : isDad
             ? 'bg-[#dbeafe]' // soft blue
             : isMom
             ? 'bg-[#fce7f3]' // soft pink
@@ -51,8 +69,19 @@ export const FamilyMemojiAvatar: React.FC<FamilyMemojiAvatarProps> = ({
             : 'bg-[#dcfce7]' // soft green
         }`}
       >
-        {/* Dad Memoji Avatar */}
-        {isDad && (
+        {/* Custom Emoji Avatar */}
+        {customAvatarType === 'emoji' && customAvatarIcon ? (
+          <span className="select-none animate-in zoom-in-75 duration-200">
+            {customAvatarIcon}
+          </span>
+        ) : customAvatarType === 'initials' ? (
+          <span className="font-bold text-white text-sm select-none">
+            {name.slice(0, 2).toUpperCase()}
+          </span>
+        ) : (
+          <>
+            {/* Dad Memoji Avatar */}
+            {isDad && (
           <svg className="w-full h-full transform scale-110 translate-y-1" viewBox="0 0 100 100" fill="none">
             {/* Skin */}
             <circle cx="50" cy="52" r="26" fill="#f8c8a2" />
@@ -166,6 +195,8 @@ export const FamilyMemojiAvatar: React.FC<FamilyMemojiAvatarProps> = ({
             <path d="M43 60 Q50 68 57 60 Z" fill="#e11d48" />
             <path d="M44 60 Q50 62 56 60" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
           </svg>
+        )}
+          </>
         )}
       </div>
 

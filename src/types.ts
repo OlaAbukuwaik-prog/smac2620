@@ -27,7 +27,7 @@ export interface ConnectedCalendar {
 export interface FamilyMember {
   id: string;
   name: string;
-  arabicName: string;
+  arabicName?: string;
   role: FamilyRole;
   ageRange: string;
   avatarColor: string;
@@ -37,6 +37,9 @@ export interface FamilyMember {
   moodUpdatedAt?: string;
   privacySettings: PrivacySettings;
   calendar: ConnectedCalendar;
+  customAvatarIcon?: string; // Emoji e.g. '🐱' or '🚀'
+  customAvatarType?: 'memoji' | 'emoji' | 'initials';
+  customMemojiPreset?: 'dad' | 'mom' | 'teen' | 'child';
 }
 
 export interface Family {
@@ -189,7 +192,7 @@ export interface ChildAIInteractionSummary {
   childName: string;
   childRole: FamilyRole;
   lastActive: string;
-  emotionalState: 'High Anxiety' | 'Mild Stress' | 'Vulnerable' | 'Calm' | 'Hopeful';
+  emotionalState: 'High Anxiety' | 'Mild Stress' | 'Vulnerable' | 'Calm' | 'Hopeful' | string;
   anxietyLevelPercent: number;
   coreConcerns: string[];
   recentTopic: string;

@@ -19,6 +19,9 @@ import {
   Send,
   Lock,
   Compass,
+  AlertTriangle,
+  Copy,
+  Palette,
 } from 'lucide-react';
 import {
   Family,
@@ -26,9 +29,11 @@ import {
   FamilyEvent,
   WeeklyChallenge,
   Activity,
+  ChildAIInteractionSummary,
 } from '../types';
 import { NightHouseIllustration } from './NightHouseIllustration';
 import { FamilyMemojiAvatar } from './FamilyMemojiAvatar';
+import { CustomizeAvatarModal } from './CustomizeAvatarModal';
 
 interface HomeScreenProps {
   family: Family;
@@ -37,6 +42,7 @@ interface HomeScreenProps {
   upcomingEvents: FamilyEvent[];
   weeklyChallenge: WeeklyChallenge;
   todaySuggestion: Activity;
+  guidanceSummary?: ChildAIInteractionSummary;
   onOpenHarmonyReport: () => void;
   onOpenMoodDashboard: () => void;
   onOpenCalendar: () => void;
@@ -51,6 +57,8 @@ interface HomeScreenProps {
   onOpenFamilyAdmin?: () => void;
   onOpenFeatureGuide?: () => void;
   onProposeOutingToParents?: (title: string) => void;
+  onTriggerKidChatToParentGuidance?: (situation: string) => void;
+  onUpdateMemberAvatar?: (memberId: string, updates: Partial<FamilyMember>) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -74,25 +82,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenFamilyAdmin,
   onOpenFeatureGuide,
   onProposeOutingToParents,
+  guidanceSummary,
+  onTriggerKidChatToParentGuidance,
+  onUpdateMemberAvatar,
 }) => {
   const isParent = activeMember.role === 'Parent';
 
-  // Kid AI Confidant interactive state
-  const [kidChatInput, setKidChatInput] = useState('');
-  const [kidActiveConversation, setKidActiveConversation] = useState<{
-    userText: string;
-    aiResponse: string;
-    parentCoachingPreview: string;
-  } | null>({
-    userText: 'I made a difficult mistake today and I am terrified my parents will be angry and react harshly...',
-    aiResponse:
-      'Take a deep, slow breath. You are completely safe here. Making a mistake is a normal part of learning. We are going to protect your communication space. The AI will prepare your parents with a calm de-escalation protocol so you can discuss this with empathy and problem-solving rather than anger.',
-    parentCoachingPreview:
-      "💡 AI Guidance for Parents: 'Your child chose to be honest about a mistake instead of hiding it. Welcome this transparency with calm reassurance. Listen first before problem-solving.'",
-  });
-
   const [proposedOutingMsg, setProposedOutingMsg] = useState('');
   const [parentApprovedOuting, setParentApprovedOuting] = useState(false);
+  const [customizingMember, setCustomizingMember] = useState<FamilyMember | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  // Time-aware greeting
+  const currentHour = new Date().getHours();
+  const greetingText =
+    currentHour < 12 ? 'Good morning,' : currentHour < 17 ? 'Good afternoon,' : 'Good evening,';
 
   // Harmony gauge calculations (82%)
   const harmonyScore = family.harmonyScore || 82;
@@ -127,25 +131,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       location: 'Family Dining',
     };
 
-  const handleKidQuickVent = (situation: string, fear: string) => {
-    setKidActiveConversation({
-      userText: `${situation} (${fear})`,
-      aiResponse: `I hear you loud and clear. Take a breath—you are not in danger. You did the hardest part by acknowledging it. We are shielding you, and we will coach your parents step-by-step so they speak to you with warmth and no shouting.`,
-      parentCoachingPreview: `💡 AI Guidance prepared for Dad & Mom: 'Your child is coming forward about a mistake. Respond with calm praise for their honesty. Under no circumstances yell or impose immediate punishment.'`,
-    });
-  };
-
-  const handleKidSubmitCustomVent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!kidChatInput.trim()) return;
-    setKidActiveConversation({
-      userText: kidChatInput,
-      aiResponse: `Thank you for trusting me with this. You are safe here. We will prepare your parents with a calm nervous-system reset before they speak to you, ensuring they react with understanding and constructive help.`,
-      parentCoachingPreview: `💡 AI Guidance prepared for Dad & Mom: 'Your child shared a vulnerable situation. Approach them with love, listen without interrupting, and solve it together.'`,
-    });
-    setKidChatInput('');
-  };
-
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-slate-800">
       {/* 1. GREETING & NIGHT HOUSE SCENE (Direct Match with Screenshot) */}
@@ -153,18 +138,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Good evening,
+              {greetingText}
             </h1>
-            {isParent && (
-              <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
-                Parent Control
-              </span>
-            )}
-            {!isParent && (
-              <span className="text-[10px] bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded-full">
-                Safe Haven
-              </span>
-            )}
           </div>
           <div className="text-2xl font-bold text-[#7c3aed] flex items-center gap-1.5">
             <span>{activeMember.name || 'Family Member'}</span>
@@ -179,9 +154,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 font-normal pt-0.5">
-            {isParent
-              ? 'Guardian Dashboard: Overseeing family harmony and de-escalated communication.'
-              : "Here's what's happening with your family today."}
+            Here's what's happening with your family today.
           </p>
         </div>
 
@@ -189,198 +162,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <NightHouseIllustration className="w-32 h-24 -mr-1" />
       </div>
 
-      {/* 2. ROLE-SPECIFIC CORE HERO SECTION */}
-      {isParent ? (
-        /* ================= PARENT VIEW (FATHER & MOTHER CONTROL CENTER) ================= */
-        <div className="p-4 rounded-3xl bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 text-white shadow-md relative overflow-hidden border border-indigo-700/50 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-indigo-400/20 text-indigo-300 border border-indigo-400/30">
-                <ShieldCheck className="w-4 h-4" />
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
-                Parent Guardian Control Center
-              </span>
-            </div>
-            <button
-              onClick={onOpenFamilyAdmin}
-              className="text-[10px] bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-xl text-white font-semibold flex items-center gap-1 transition-all cursor-pointer"
-            >
-              <span>Manage Family</span>
-              <ChevronRight className="w-3 h-3" />
-            </button>
-          </div>
-
-          {/* Pending Safe Haven De-escalation Alert */}
-          <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-400/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-amber-400" />
-                <span>Pending De-escalation Briefing from Child</span>
-              </span>
-              <span className="text-[9px] bg-amber-400 text-purple-950 font-bold px-1.5 py-0.2 rounded">
-                Action Required
-              </span>
-            </div>
-            <p className="text-xs text-amber-100 leading-relaxed">
-              Your child needs to tell you about a difficult situation and is scared of an angry reaction. The AI has prepared a <strong>calming script and 5-second reset</strong> so you can solve this together with reassurance.
-            </p>
-            <button
-              onClick={onOpenBridge}
-              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-purple-950 font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Open Parent Guidance Hub (Insights from Kid Chats)</span>
-              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-            </button>
-          </div>
-
-          {/* Google Calendar Sync & Family Status */}
-          <div className="flex items-center justify-between pt-1 border-t border-white/10 text-xs">
-            <div className="flex items-center gap-2 text-purple-200">
-              <CalendarIcon className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Google Calendar: 4 Accounts Synced</span>
-            </div>
-            <button
-              onClick={onOpenCalendar}
-              className="text-emerald-300 hover:underline font-semibold text-[11px] cursor-pointer"
-            >
-              View Free Slots →
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* ================= KID / TEENAGER VIEW (SAFE HAVEN & AI CONFIDANT) ================= */
-        <div className="p-4 rounded-3xl bg-gradient-to-r from-[#2e1065] via-[#3b0764] to-[#1e1b4b] text-white shadow-md relative overflow-hidden border border-purple-800/40 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                <ShieldAlert className="w-4 h-4" />
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                Future AI Connect • Safe Haven
-              </span>
-            </div>
-            <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-purple-200 font-semibold">
-              Harm Prevention AI
-            </span>
-          </div>
-
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>Afraid of your parents' reaction?</span>
-              <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
-            </h3>
-            <p className="text-xs text-purple-200 leading-relaxed">
-              Talk safely to your AI confidant. We will comfort you and coach your parents how to react with warmth <strong>without screaming, humiliating, or harming you</strong>.
-            </p>
-          </div>
-
-          {/* Quick Confession Chips */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300">
-              Quick Situations You Can Tap:
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() =>
-                  handleKidQuickVent(
-                    'I received poor results on an exam today',
-                    'Terrified my parents will be angry and punish me'
-                  )
-                }
-                className="text-[10px] px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-purple-100 border border-white/15 active:scale-95 transition-all cursor-pointer"
-              >
-                📝 Academic Difficulties
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleKidQuickVent(
-                    "I accidentally damaged an item at home",
-                    'Scared of an angry shouting reaction'
-                  )
-                }
-                className="text-[10px] px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-purple-100 border border-white/15 active:scale-95 transition-all cursor-pointer"
-              >
-                🛠️ Accidental Damage
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleKidQuickVent(
-                    'Overwhelmed by daily stress and expectations',
-                    'Afraid parents will misunderstand me'
-                  )
-                }
-                className="text-[10px] px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-purple-100 border border-white/15 active:scale-95 transition-all cursor-pointer"
-              >
-                😰 Daily Stress
-              </button>
-            </div>
-          </div>
-
-          {/* Active AI Confidant Response Box */}
-          {kidActiveConversation && (
-            <div className="p-3 bg-white/10 rounded-2xl border border-white/15 space-y-2 text-xs">
-              <div className="space-y-1">
-                <div className="text-[10px] text-purple-300 font-bold uppercase tracking-wider">
-                  You Confided:
-                </div>
-                <div className="text-purple-100 italic bg-black/20 p-2 rounded-xl text-[11px]">
-                  "{kidActiveConversation.userText}"
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-[10px] text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1">
-                  <Bot className="w-3.5 h-3.5" />
-                  <span>AI Confidant Reassurance:</span>
-                </div>
-                <div className="text-purple-100 leading-relaxed text-[11px]">
-                  {kidActiveConversation.aiResponse}
-                </div>
-              </div>
-
-              <div className="p-2 rounded-xl bg-purple-950/60 border border-purple-400/30 text-[10px] text-amber-200">
-                {kidActiveConversation.parentCoachingPreview}
-              </div>
-            </div>
-          )}
-
-          {/* Interactive Vent Input */}
-          <form onSubmit={handleKidSubmitCustomVent} className="flex gap-1.5">
-            <input
-              type="text"
-              placeholder="Or type what you are afraid to tell them..."
-              value={kidChatInput}
-              onChange={(e) => setKidChatInput(e.target.value)}
-              className="flex-1 px-3 py-2 text-xs bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:border-amber-400"
-            />
-            <button
-              type="submit"
-              className="px-3 py-2 bg-amber-400 hover:bg-amber-300 text-purple-950 rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
-
-          {/* Launch Gemini Confidant Chat Button */}
-          <button
-            id="hero-safe-connect-btn"
-            type="button"
-            onClick={onOpenBridge}
-            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-600 to-purple-600 hover:from-sky-400 hover:via-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>Open Gemini AI Confidant (Private & Safe Chat)</span>
-            <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-          </button>
-        </div>
-      )}
-
-      {/* 3. FAMILY HARMONY CARD (82%) */}
+      {/* 2. FAMILY HARMONY CARD (82%) */}
       <div
         id="family-harmony-card"
         onClick={onOpenHarmonyReport}
@@ -443,80 +225,118 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
-      {/* 4. FAMILY MOOD TODAY */}
+      {/* 4. FAMILY MOOD TODAY - Shows ONLY actual family members */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900">Family Mood Today</h2>
-          <button
-            id="view-all-moods-btn"
-            onClick={onOpenMoodDashboard}
-            className="text-xs font-semibold text-[#7c3aed] hover:text-[#6d28d9] hover:underline cursor-pointer"
-          >
-            View All
-          </button>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-slate-900">Family Mood Today</h2>
+            <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">
+              {allMembers.length} {allMembers.length === 1 ? 'Member' : 'Members'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCustomizingMember(activeMember)}
+              className="flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-lg border border-purple-200 transition-colors cursor-pointer"
+              title="Customize your avatar"
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>Customize</span>
+            </button>
+            <button
+              id="view-all-moods-btn"
+              onClick={onOpenMoodDashboard}
+              className="text-xs font-semibold text-[#7c3aed] hover:text-[#6d28d9] hover:underline cursor-pointer"
+            >
+              View All
+            </button>
+          </div>
         </div>
 
-        {/* 4 Illustrated Memoji Avatars: Father, Mother, You, Child */}
-        <div className="flex items-center justify-between px-1">
-          {/* Father */}
-          <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={onOpenMoodDashboard}
-          >
-            <FamilyMemojiAvatar
-              memberId="m-dad"
-              name="Father"
-              role="Parent"
-              moodBadge="happy"
-              size="md"
-            />
-            <span className="text-xs font-medium text-slate-700">Father</span>
-          </div>
+        {/* Real Family Members Avatars (Dynamic, no phantom default members) */}
+        <div className="flex items-center gap-3 overflow-x-auto pb-1 px-1">
+          {allMembers.map((member) => {
+            const isMe = member.id === activeMember.id;
+            const moodBadge: 'happy' | 'neutral' | 'calm' | 'sad' =
+              member.currentMood === 'Great' || member.currentMood === 'Good'
+                ? 'happy'
+                : member.currentMood === 'Okay'
+                ? 'calm'
+                : member.currentMood === 'Low' || member.currentMood === 'Stressed'
+                ? 'sad'
+                : 'neutral';
 
-          {/* Mother */}
-          <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={onOpenMoodDashboard}
-          >
-            <FamilyMemojiAvatar
-              memberId="m-mom"
-              name="Mother"
-              role="Parent"
-              moodBadge="happy"
-              size="md"
-            />
-            <span className="text-xs font-medium text-slate-700">Mother</span>
-          </div>
+            return (
+              <div
+                key={member.id}
+                className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-90 transition-all shrink-0 group"
+                onClick={() => {
+                  if (isMe) {
+                    setCustomizingMember(member);
+                  } else {
+                    onOpenMoodDashboard();
+                  }
+                }}
+              >
+                <div className="relative">
+                  <FamilyMemojiAvatar
+                    memberId={member.id}
+                    name={member.name}
+                    role={member.role}
+                    moodBadge={moodBadge}
+                    size="md"
+                    customAvatarType={member.customAvatarType}
+                    customAvatarIcon={member.customAvatarIcon}
+                    customMemojiPreset={member.customMemojiPreset}
+                    avatarColor={member.avatarColor}
+                  />
+                  {isMe && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCustomizingMember(member);
+                      }}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-purple-700 text-white flex items-center justify-center text-[8px] shadow-xs hover:scale-110 transition-transform"
+                      title="Customize Avatar"
+                    >
+                      ✎
+                    </button>
+                  )}
+                </div>
+                <div className="text-center">
+                  <div className={`text-xs font-medium truncate max-w-[70px] ${isMe ? 'font-bold text-purple-700' : 'text-slate-700'}`}>
+                    {isMe ? `${member.name} (You)` : member.name}
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    {member.currentMood || 'Good'}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
-          {/* You (Active member) */}
-          <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={onOpenMoodCheck}
+          {/* Invite Code Pill / Button to add real members to family */}
+          <button
+            onClick={() => {
+              if (onOpenFamilyAdmin) {
+                onOpenFamilyAdmin();
+              } else if (family?.inviteCode) {
+                navigator.clipboard?.writeText(family.inviteCode);
+                setCopiedCode(true);
+                setTimeout(() => setCopiedCode(false), 2000);
+              }
+            }}
+            className="flex flex-col items-center gap-1.5 shrink-0 hover:opacity-90 transition-all p-1 cursor-pointer"
+            title={`Family Code: ${family.inviteCode}`}
           >
-            <FamilyMemojiAvatar
-              memberId={activeMember.id}
-              name={activeMember.name}
-              role={activeMember.role}
-              moodBadge="neutral"
-              size="md"
-            />
-            <span className="text-xs font-semibold text-[#7c3aed]">You</span>
-          </div>
-
-          {/* Child */}
-          <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={onOpenMoodDashboard}
-          >
-            <FamilyMemojiAvatar
-              memberId="m-brother"
-              name="Child"
-              role="Child"
-              moodBadge="happy"
-              size="md"
-            />
-            <span className="text-xs font-medium text-slate-700">Child</span>
-          </div>
+            <div className="w-14 h-14 rounded-full border-2 border-dashed border-purple-300 bg-purple-50/60 hover:bg-purple-100 flex flex-col items-center justify-center text-purple-600 transition-colors">
+              <span className="text-lg font-bold leading-none">+</span>
+              <span className="text-[9px] font-bold">Invite</span>
+            </div>
+            <span className="text-[10px] font-semibold text-purple-700">
+              {copiedCode ? 'Copied!' : 'Code'}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -710,10 +530,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="grid grid-cols-5 gap-2 text-center">
-          {/* 1. Tell Someone Something (Purple Highlighted with Safe Connect) */}
+          {/* 1. Tell Someone Something */}
           <button
             type="button"
-            onClick={onOpenSafeConnect || onOpenBridge}
+            onClick={onOpenBridge}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="w-12 h-12 rounded-2xl bg-[#7c3aed] group-hover:bg-[#6d28d9] text-white flex items-center justify-center shadow-md shadow-purple-600/20 group-hover:scale-105 active:scale-95 transition-all relative">
@@ -816,6 +636,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
       </div>
+
+      {/* Customize Avatar Modal */}
+      {customizingMember && (
+        <CustomizeAvatarModal
+          isOpen={!!customizingMember}
+          member={customizingMember}
+          onClose={() => setCustomizingMember(null)}
+          onSaveAvatar={(memberId, updates) => {
+            if (onUpdateMemberAvatar) {
+              onUpdateMemberAvatar(memberId, updates);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

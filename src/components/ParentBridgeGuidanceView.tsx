@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Heart,
   ShieldCheck,
@@ -41,46 +41,45 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
   // Find children in family
   const childrenMembers = allMembers.filter((m) => m.role === 'Teenager' || m.role === 'Child');
   const [selectedChildId, setSelectedChildId] = useState<string>(
-    childrenMembers[0]?.id || 'user-sarah'
+    childrenMembers[0]?.id || allMembers[0]?.id || 'member-child'
   );
 
   const selectedChild =
     allMembers.find((m) => m.id === selectedChildId) || childrenMembers[0] || allMembers[2];
 
-  // Fallback / default guidance if kid hasn't chatted yet
+  // Real user baseline guidance when no active emergency bridge has been submitted
   const activeGuidance: ChildAIInteractionSummary = guidanceSummary || {
-    childId: selectedChild.id,
-    childName: selectedChild.name,
-    childRole: selectedChild.role,
-    lastActive: '10 minutes ago',
-    emotionalState: 'High Anxiety',
-    anxietyLevelPercent: 84,
-    coreConcerns: ['Fear of angry parental reaction', 'Academic Stress', 'Fear of Disappointing You'],
-    recentTopic: 'Discussed difficulty with an exam and fear of being yelled at or punished.',
+    childId: selectedChild?.id || 'child-default',
+    childName: selectedChild?.name || 'Your Child',
+    childRole: selectedChild?.role || 'Teenager',
+    lastActive: 'Today',
+    emotionalState: 'Calm & Receptive',
+    anxietyLevelPercent: 18,
+    coreConcerns: ['Open Communication', 'Family Connection', 'Healthy Routine'],
+    recentTopic: 'Communication channel is open and secure. No critical stress reported.',
     recentChatSnippet:
-      "I made a mistake today and I am terrified my parents will scream, get furious, or severely punish me.",
+      "All quiet. The AI Confidant is ready to assist your child whenever they need a safe space to process thoughts.",
     parentGuidance: {
       overview:
-        "Your child reached out to the AI confidant carrying intense anxiety. Their deepest fear is that you will react with explosive anger, yelling, or disappointment. They chose transparency over hiding—rewarding that courage with calm understanding will cement their trust in you for life.",
+        "Proactive emotional connection builds lifetime trust. Daily low-pressure check-ins make children 4x more likely to reach out immediately if they encounter real setbacks or peer pressure.",
       doList: [
-        "Acknowledge their courage: 'Thank you for coming to me honestly.'",
-        "Give them physical reassurance: a warm drink, a hug, or sitting side-by-side.",
-        "Listen to the complete story for at least 5 minutes before speaking or problem-solving.",
-        "Affirm that your love and trust in them are unconditional.",
+        "Ask curious, open-ended questions: 'What was the most interesting part of your day?'",
+        "Practice active listening without rushing to fix or lecture.",
+        "Acknowledge their effort and growth rather than just outcomes.",
+        "Maintain regular one-on-one rituals (a short walk, cooking, or evening tea).",
       ],
       dontList: [
-        "DO NOT yell, raise your voice, or use aggressive body language.",
-        "DO NOT compare them to siblings, cousins, or classmates.",
-        "DO NOT impose sudden, irreversible punishments in the heat of anger.",
-        "DO NOT attack their identity ('Why are you so careless / a disappointment?').",
+        "DO NOT interrogate them the moment they walk through the door.",
+        "DO NOT dismiss minor worries as 'unimportant' or 'silly'.",
+        "DO NOT react with anger when they express frustration or fatigue.",
+        "DO NOT check their private devices without mutual conversation and consent.",
       ],
       suggestedOpeningScript:
-        "\"Hey, I noticed you were feeling weighed down today. I want you to know that I love you more than any test score or mistake. Take a deep breath. Let's sit together and talk peacefully—no yelling, I promise.\"",
-      recommendedActivityTogether: 'A quiet evening tea, walk, or relaxed dinner together.',
+        "\"Hey, I love you and I'm always happy to hear about your day or just hang out together whenever you have free time.\"",
+      recommendedActivityTogether: 'A relaxing family meal or casual evening walk together.',
     },
-    bridgeRequestPending: true,
-    bridgeMessageText:
-      "Parent, I want to talk to you about something that I was afraid to share. I experienced a setback, but I value your guidance and want to discuss it calmly together.",
+    bridgeRequestPending: false,
+    bridgeMessageText: '',
   };
 
   // State for interactive features
@@ -91,13 +90,35 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
   const [isBreathingActive, setIsBreathingActive] = useState(false);
   const [breathPhase, setBreathPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale');
   const [breathSeconds, setBreathSeconds] = useState(4);
+  const breathingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const breathingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBreathingTimers = () => {
+    if (breathingIntervalRef.current) {
+      clearInterval(breathingIntervalRef.current);
+      breathingIntervalRef.current = null;
+    }
+    if (breathingTimeoutRef.current) {
+      clearTimeout(breathingTimeoutRef.current);
+      breathingTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearBreathingTimers();
+    };
+  }, []);
 
   // Calming breathing timer
   const handleToggleBreathing = () => {
     if (isBreathingActive) {
+      clearBreathingTimers();
       setIsBreathingActive(false);
       return;
     }
+
+    clearBreathingTimers();
     setIsBreathingActive(true);
     setBreathPhase('Inhale');
     setBreathSeconds(4);
@@ -105,7 +126,7 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
     let count = 4;
     let phase: 'Inhale' | 'Hold' | 'Exhale' = 'Inhale';
 
-    const interval = setInterval(() => {
+    breathingIntervalRef.current = setInterval(() => {
       count -= 1;
       if (count <= 0) {
         if (phase === 'Inhale') {
@@ -124,8 +145,8 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
     }, 1000);
 
     // Stop after 30 seconds
-    setTimeout(() => {
-      clearInterval(interval);
+    breathingTimeoutRef.current = setTimeout(() => {
+      clearBreathingTimers();
       setIsBreathingActive(false);
     }, 28000);
   };
@@ -154,46 +175,6 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
 
   return (
     <div className="flex-1 bg-[#f8f6fb] px-4 py-4 space-y-4 pb-20">
-      {/* Top Header */}
-      <section className="bg-gradient-to-r from-purple-800 via-indigo-800 to-indigo-950 text-white rounded-2xl p-4 shadow-sm relative overflow-hidden">
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-xl bg-purple-600/50 text-amber-300">
-              <Heart className="w-5 h-5 fill-amber-300/30" />
-            </span>
-            <div>
-              <h1 className="text-base font-bold">Parent Guidance Hub</h1>
-              <span className="text-[11px] text-purple-200">
-                AI Coaching Synthesized from Your Children's Chats
-              </span>
-            </div>
-          </div>
-          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-semibold">
-            Live Insights
-          </span>
-        </div>
-
-        <p className="text-xs text-purple-100 leading-relaxed mt-2">
-          When your kids chat with their private AI confidant, the AI analyzes their emotional state and equips you with empathetic parenting guides on how to respond constructively with zero shouting.
-        </p>
-
-        {/* Switch perspective shortcut */}
-        {selectedChild && onSwitchMember && (
-          <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between">
-            <span className="text-[11px] text-purple-200">
-              Want to see the Kid's Gemini Chat screen?
-            </span>
-            <button
-              onClick={() => onSwitchMember(selectedChild)}
-              className="text-xs font-bold px-3 py-1 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all flex items-center gap-1 active:scale-95"
-            >
-              <span>Switch to {selectedChild.name} (Kid)</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </section>
-
       {/* Child Selector Pill Tabs */}
       {childrenMembers.length > 1 && (
         <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-purple-100 shadow-xs">
@@ -242,9 +223,24 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
           </div>
 
           <div className="text-right">
-            <span className="text-xs font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              <span>Anxiety: {activeGuidance.anxietyLevelPercent}%</span>
+            <span
+              className={`text-xs font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                activeGuidance.anxietyLevelPercent > 50
+                  ? 'text-rose-600 bg-rose-50 border border-rose-200'
+                  : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+              }`}
+            >
+              {activeGuidance.anxietyLevelPercent > 50 ? (
+                <>
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>Anxiety: {activeGuidance.anxietyLevelPercent}%</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Status: Calm ({activeGuidance.anxietyLevelPercent}%)</span>
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -467,18 +463,6 @@ export const ParentBridgeGuidanceView: React.FC<ParentBridgeGuidanceViewProps> =
         )}
       </section>
 
-      {/* Link to full harm prevention protocol */}
-      {onOpenSafeConnect && (
-        <div className="p-3 bg-slate-100 rounded-2xl flex items-center justify-between text-xs text-slate-600">
-          <span>Need deeper scenario breakdowns for severe mistakes?</span>
-          <button
-            onClick={onOpenSafeConnect}
-            className="text-purple-700 hover:text-purple-900 font-bold hover:underline"
-          >
-            Safe Haven Protocol ➔
-          </button>
-        </div>
-      )}
     </div>
   );
 };

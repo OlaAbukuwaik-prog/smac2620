@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   INITIAL_MEMBERS,
   INITIAL_FAMILY,
@@ -21,6 +21,11 @@ import {
   BridgeMessage,
   ChildAIInteractionSummary,
 } from './types';
+import {
+  getSavedFamilies,
+  getFamilyGuidance,
+  saveFamilyGuidance,
+} from './services/familyRegistry';
 import { AndroidFrame } from './components/AndroidFrame';
 import { TopAppBar, BottomNavigation, TabType } from './components/Navigation';
 import { HomeScreen } from './components/HomeScreen';
@@ -36,7 +41,6 @@ import { AssistantModal } from './components/AssistantModal';
 import { PrivacyModal } from './components/PrivacyModal';
 import { CalendarOAuthModal } from './components/CalendarOAuthModal';
 import { MLKitReportModal } from './components/MLKitReportModal';
-import { CompetitionStoryModal } from './components/CompetitionStoryModal';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { SafeConnectBridgeModal } from './components/SafeConnectBridgeModal';
 import { FamilyAdminSetupModal } from './components/FamilyAdminSetupModal';
@@ -57,11 +61,79 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // Family & Member State
-  const [allMembers, setAllMembers] = useState<FamilyMember[]>(INITIAL_MEMBERS);
-  const [activeMember, setActiveMember] = useState<FamilyMember>(INITIAL_MEMBERS[0]);
-  const [family, setFamily] = useState<Family>(INITIAL_FAMILY);
+  // User Session & Persistence for Real Users
+  const [isSignedIn, setIsSignedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('silah_is_signed_in') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [googleUserEmail, setGoogleUserEmail] = useState<string>(() => {
+    try {
+      return localStorage.getItem('silah_user_email') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [family, setFamily] = useState<Family>(() => {
+    try {
+      const saved = localStorage.getItem('silah_family');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return INITIAL_FAMILY;
+  });
+
+  const [allMembers, setAllMembers] = useState<FamilyMember[]>(() => {
+    try {
+      const saved = localStorage.getItem('silah_members');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return INITIAL_MEMBERS;
+  });
+
+  const [activeMember, setActiveMember] = useState<FamilyMember>(() => {
+    try {
+      const saved = localStorage.getItem('silah_active_member');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return INITIAL_MEMBERS[0];
+  });
+
   const [currentTab, setCurrentTab] = useState<TabType>('home');
+
+  // Sync state to local storage for real-world continuity
+  useEffect(() => {
+    try {
+      if (isSignedIn) {
+        localStorage.setItem('silah_is_signed_in', 'true');
+        localStorage.setItem('silah_user_email', googleUserEmail);
+        localStorage.setItem('silah_active_member', JSON.stringify(activeMember));
+        localStorage.setItem('silah_members', JSON.stringify(allMembers));
+        localStorage.setItem('silah_family', JSON.stringify(family));
+      }
+    } catch {
+      // ignore
+    }
+  }, [isSignedIn, googleUserEmail, activeMember, allMembers, family]);
+
+  const handleSignOut = () => {
+    try {
+      localStorage.removeItem('silah_is_signed_in');
+      localStorage.removeItem('silah_active_member');
+    } catch {
+      // ignore
+    }
+    setIsSignedIn(false);
+  };
 
   // Content state
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>(INITIAL_MOOD_HISTORY);
@@ -82,7 +154,6 @@ export default function App() {
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [showAssistantModal, setShowAssistantModal] = useState(false);
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
-  const [showCompetitionStoryModal, setShowCompetitionStoryModal] = useState(false);
   const [showSafeConnectModal, setShowSafeConnectModal] = useState(false);
   const [showFamilyAdminModal, setShowFamilyAdminModal] = useState(false);
   const [showFeatureGuideModal, setShowFeatureGuideModal] = useState(false);
@@ -90,12 +161,151 @@ export default function App() {
   const [selectedEventDetails, setSelectedEventDetails] = useState<FamilyEvent | null>(null);
 
   // Google Sign-In & Integration State
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [googleUserEmail, setGoogleUserEmail] = useState('parent@gmail.com');
   const [showGoogleIntegrationModal, setShowGoogleIntegrationModal] = useState(false);
 
-  // Live Child AI Interaction Summary (Coaching guide generated for parents)
-  const [guidanceSummary, setGuidanceSummary] = useState<ChildAIInteractionSummary | undefined>(undefined);
+  // Live Child AI Interaction Summary (Ways to Treat Your Kid - generated automatically from kid's AI confidant)
+  const [guidanceSummary, setGuidanceSummary] = useState<ChildAIInteractionSummary | undefined>(() => {
+    try {
+      const saved = getFamilyGuidance(family?.id || 'fam-01');
+      if (saved) return saved;
+    } catch {
+      // ignore
+    }
+    return undefined;
+  });
+
+  // Listen to cross-component guidance update events
+  useEffect(() => {
+    // Listen to cross-component guidance update events
+    const handleGuidanceEvent = (e: CustomEvent<ChildAIInteractionSummary>) => {
+      if (e.detail) {
+        setGuidanceSummary(e.detail);
+      }
+    };
+    window.addEventListener('silah-guidance-updated', handleGuidanceEvent as EventListener);
+
+    // Listen to new member joined via code events
+    const handleMemberJoinedEvent = (e: CustomEvent<{ memberName: string; familyName?: string }>) => {
+      if (e.detail?.memberName) {
+        const notif: AppNotification = {
+          id: `notif-join-${Date.now()}`,
+          recipientId: activeMember.id,
+          title: `New Family Member Joined! 🎉`,
+          message: `${e.detail.memberName} just joined your family using the invite code.`,
+          timestamp: 'Just now',
+          read: false,
+          type: 'recommendation',
+        };
+        setNotifications((prev) => [notif, ...prev]);
+      }
+    };
+    window.addEventListener('silah-member-joined', handleMemberJoinedEvent as EventListener);
+
+    return () => {
+      window.removeEventListener('silah-guidance-updated', handleGuidanceEvent as EventListener);
+      window.removeEventListener('silah-member-joined', handleMemberJoinedEvent as EventListener);
+    };
+  }, [activeMember.id]);
+
+  const handleUpdateParentGuidance = (summary: ChildAIInteractionSummary) => {
+    setGuidanceSummary(summary);
+    if (family?.id) {
+      saveFamilyGuidance(family.id, summary);
+    }
+    // Also notify parents about the new coaching guide
+    const parent = allMembers.find((m) => m.role === 'Parent');
+    const newNotif: AppNotification = {
+      id: `notif-guide-${Date.now()}`,
+      recipientId: parent?.id || 'user-dad',
+      title: `AI Guidance for ${summary.childName}`,
+      message: `${summary.childName} talked with AI Confidant. Check Parent Guidance for empathetic advice and connection scripts.`,
+      timestamp: 'Just now',
+      read: false,
+      type: 'bridge',
+      actionTarget: 'bridge',
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+  };
+
+  // Automatically generates ways to treat the kid on the parent side when the kid chats
+  const handleKidTriggerGuidance = (kidPrompt: string) => {
+    const textLower = kidPrompt.toLowerCase();
+    let emotion = 'Anxious & Overwhelmed';
+    let summaryForParent = '';
+    let doRules: string[] = [];
+    let dontRules: string[] = [];
+    let script = '';
+    const childName = activeMember.name || 'Your child';
+
+    if (textLower.includes('fail') || textLower.includes('grade') || textLower.includes('exam') || textLower.includes('school') || textLower.includes('academic')) {
+      emotion = 'Academic Panic & Fear of Disappointment';
+      summaryForParent = `${childName} is carrying intense anxiety regarding an academic test or school grade. Underneath the panic is a deep desire to make you proud and a fear of harsh anger or disappointment. They need calm reassurance and teamwork rather than interrogation.`;
+      doRules = [
+        'Acknowledge their courage in speaking honestly with you.',
+        'Give them a reassuring hug or offer a warm beverage before discussing school.',
+        'Focus on future study routines and tutoring help as a supportive team without blame.',
+        'Remind them: "My love for you never depends on a test score."',
+      ];
+      dontRules = [
+        'DO NOT shout, yell, or react with explosive anger.',
+        'DO NOT compare them to siblings, cousins, or classmates.',
+        'DO NOT threaten to cancel all social activities or ground them in anger.',
+      ];
+      script = `"Thank you for telling me honestly. I know you were worried I might be upset, but your honesty and well-being matter far more to me than any grade. Let's take a deep breath and figure out how to tackle this together as a team."`;
+    } else if (textLower.includes('break') || textLower.includes('damage') || textLower.includes('accident') || textLower.includes('mess')) {
+      emotion = 'Panic & Guilt over an Accident';
+      summaryForParent = `${childName} experienced an accidental mishap or damage to an item. They are trembling with anxiety and terrified of being yelled at or shamed. They feel genuine remorse and need your steady, calm presence.`;
+      doRules = [
+        'Check on your child’s emotional and physical safety first before looking at the item.',
+        'Remind yourself: It is a material possession that can be repaired or replaced.',
+        'Praise them warmly for admitting it immediately rather than trying to hide it.',
+        'Guide them calmly on how to clean up or help repair it together without anger.',
+      ];
+      dontRules = [
+        'DO NOT yell, slam doors, or use intimidating body language.',
+        'DO NOT say "You always ruin things" or attack their personal character.',
+        'DO NOT treat an accidental mistake the same as intentional disobedience.',
+      ];
+      script = `"Take a deep breath. Are you okay? The item is just material, but you are my child and I love you. Thank you for telling me right away. We will clean it up and solve it together."`;
+    } else {
+      emotion = 'General Anxiety & Need for Emotional Safety';
+      summaryForParent = `${childName} is carrying significant emotional weight and anxiety today. They need unconditional reassurance that they are loved, valued, and that home is a warm, emotionally safe haven where they will never be judged or yelled at.`;
+      doRules = [
+        'Greet them with physical warmth (a hug, a gentle touch on the shoulder) and a warm smile.',
+        'Give them space to unwind without bombarding them with questions or chores.',
+        'Reassure them: "I love you no matter what kind of day you had."',
+      ];
+      dontRules = [
+        'DO NOT demand immediate explanations if they appear quiet or withdrawn.',
+        'DO NOT use sarcasm, sharp tones, or exasperated sighs.',
+        'DO NOT bring up past mistakes or lecture about responsibility when they are already stressed.',
+      ];
+      script = `"Hey sweetheart, I noticed you seemed carrying a heavy load today. I just want to tell you that I love you no matter what. Whenever you feel like talking, I'm right here with zero judgment and all the love in the world."`;
+    }
+
+    const newGuidance: ChildAIInteractionSummary = {
+      childId: activeMember.id,
+      childName,
+      childRole: activeMember.role || 'Child',
+      lastActive: 'Just now',
+      emotionalState: emotion,
+      anxietyLevelPercent: 82,
+      coreConcerns: ['Fear of anger or yelling', 'Need for emotional safety', 'Trust preservation'],
+      recentTopic: kidPrompt.slice(0, 80),
+      recentChatSnippet: kidPrompt,
+      parentGuidance: {
+        overview: summaryForParent,
+        doList: doRules,
+        dontList: dontRules,
+        suggestedOpeningScript: script,
+        recommendedActivityTogether: 'Quiet evening walk, warm beverage, or relaxed family dinner',
+      },
+      bridgeRequestPending: true,
+      bridgeMessageText: `Parent, I experienced a difficult situation today. I care about our connection and want to talk calmly together.`,
+    };
+
+    handleUpdateParentGuidance(newGuidance);
+  };
 
   // Outing Proposal from Kid to Parents
   const handleProposeOuting = (outingTitle: string) => {
@@ -143,6 +353,11 @@ export default function App() {
     setNotifications((prev) => [notif, ...prev]);
   };
 
+  // Delete event handler
+  const handleDeleteEvent = (eventId: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+  };
+
   // Save Mood Check-in
   const handleSaveMood = (entryData: Omit<MoodEntry, 'id' | 'timestamp'>) => {
     const newEntry: MoodEntry = {
@@ -167,8 +382,50 @@ export default function App() {
     }));
   };
 
+  // Add Family Member
+  const handleAddFamilyMember = (newMemberData: Partial<FamilyMember>) => {
+    const fullMember: FamilyMember = {
+      id: `member-${Date.now()}`,
+      name: newMemberData.name || 'Family Member',
+      arabicName: newMemberData.arabicName || newMemberData.name || 'عضو بالعائلة',
+      role: newMemberData.role || 'Teenager',
+      ageRange: newMemberData.ageRange || '13-17',
+      avatarColor: newMemberData.avatarColor || 'bg-purple-600 text-white',
+      initials:
+        newMemberData.initials ||
+        (newMemberData.name ? newMemberData.name.slice(0, 2).toUpperCase() : 'FM'),
+      preferences: newMemberData.preferences || ['Family outings', 'Family meals'],
+      calendar: newMemberData.calendar || {
+        provider: 'google',
+        accountEmail:
+          newMemberData.calendar?.accountEmail ||
+          `${(newMemberData.name || 'member').toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+        isConnected: true,
+        scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+      },
+      privacySettings: {
+        shareGeneralMoodWithFamily: true,
+        shareDetailedMood: false,
+        sharePrivateNotes: false,
+        shareCalendarAvailability: true,
+        enableAiAssistance: true,
+        visibleActivityHistory: true,
+      },
+      currentMood: 'Good',
+    };
+
+    setAllMembers((prev) => [...prev, fullMember]);
+    setFamily((prev) => ({
+      ...prev,
+      members: [...prev.members, fullMember],
+    }));
+  };
+
   // Bridge Conversation Completed
   const handleBridgeConversationCompleted = (message: BridgeMessage) => {
+    const recipient = allMembers.find((m) => m.id === message.recipientId);
+    const recipientName = recipient ? recipient.name : 'Parent';
+
     // Increase Harmony score by 2%
     setFamily((prev) => {
       const newScore = Math.min(100, prev.harmonyScore + 2);
@@ -187,7 +444,7 @@ export default function App() {
         {
           title: 'Bridge Dialogue Completed',
           count: 'New',
-          description: `Respectful conversation with ${message.recipientId === 'user-dad' ? 'Dad' : 'Parent'} completed peacefully.`,
+          description: `Respectful conversation with ${recipientName} completed peacefully.`,
         },
         ...prev.positiveActivities,
       ],
@@ -226,74 +483,6 @@ export default function App() {
     }));
   };
 
-  // Apply Action from Guided Competition Demo Flow (Section 23)
-  const handleApplyStoryStep = (stepNumber: number) => {
-    switch (stepNumber) {
-      case 1:
-        // Mood check: Nervous
-        handleSaveMood({
-          userId: 'user-teen',
-          date: '2026-09-06',
-          mood: 'Not great',
-          energy: 2,
-          stress: 5,
-          sleep: 2,
-          familyConnection: 3,
-          privateNote: 'Worried about my exam grade.',
-          sharedWithFamily: true,
-        });
-        break;
-      case 2:
-      case 3:
-      case 4:
-      case 5:
-        setCurrentTab('bridge');
-        break;
-      case 6:
-      case 7:
-      case 8: {
-        const dad = allMembers.find((m) => m.role === 'Parent');
-        if (dad) setActiveMember(dad);
-        setCurrentTab('bridge');
-        break;
-      }
-      case 9:
-      case 10: {
-        const teen = allMembers.find((m) => m.role === 'Teenager');
-        if (teen) setActiveMember(teen);
-        setFamily((prev) => ({ ...prev, harmonyScore: 84, weeklyTrendPercent: 10 }));
-        setCurrentTab('home');
-        break;
-      }
-      case 11:
-      case 12:
-        setCurrentTab('family');
-        setFamilySubTab('calendar');
-        break;
-      case 13: {
-        handleAddEvent({
-          title: 'Family Dinner Tonight',
-          arabicTitle: 'عشاء العائلة الليلة',
-          date: '2026-09-06',
-          startTime: '18:30',
-          endTime: '19:30',
-          location: 'Home Dining Room',
-          participantIds: allMembers.map((m) => m.id),
-          category: 'dinner',
-          color: '#8b5cf6',
-          notes: 'Scheduled via Free Time overlap calculation.',
-        });
-        break;
-      }
-      case 14:
-        handleIncrementChallenge();
-        setCurrentTab('home');
-        break;
-      default:
-        break;
-    }
-  };
-
   const unreadNotificationCount = notifications.filter((n) => !n.read).length;
 
   if (!isSignedIn) {
@@ -324,11 +513,10 @@ export default function App() {
       activeMember={activeMember}
       allMembers={allMembers}
       onSwitchMember={handleSwitchMember}
-      onOpenCompetitionDemo={() => setShowCompetitionStoryModal(true)}
       onOpenMLKitReport={() => setShowMLKitModal(true)}
       onOpenGoogleIntegration={() => setShowGoogleIntegrationModal(true)}
       googleEmail={googleUserEmail}
-      onSignOut={() => setIsSignedIn(false)}
+      onSignOut={handleSignOut}
     >
       {/* Top Application Bar */}
       <TopAppBar
@@ -371,6 +559,8 @@ export default function App() {
             onOpenSafeConnect={() => setShowSafeConnectModal(true)}
             onOpenFamilyAdmin={() => setShowFamilyAdminModal(true)}
             onOpenFeatureGuide={() => setShowFeatureGuideModal(true)}
+            guidanceSummary={guidanceSummary}
+            onTriggerKidChatToParentGuidance={handleKidTriggerGuidance}
             onProposeOutingToParents={handleProposeOuting}
             onStartActivity={(act) => {
               handleAddEvent({
@@ -396,7 +586,7 @@ export default function App() {
             onSwitchMember={handleSwitchMember}
             onOpenSafeConnect={() => setShowSafeConnectModal(true)}
             guidanceSummary={guidanceSummary}
-            onUpdateParentGuidance={setGuidanceSummary}
+            onUpdateParentGuidance={handleUpdateParentGuidance}
           />
         )}
 
@@ -436,6 +626,7 @@ export default function App() {
                 allMembers={allMembers}
                 activeMember={activeMember}
                 onAddEvent={handleAddEvent}
+                onDeleteEvent={handleDeleteEvent}
                 onOpenOAuthModal={() => setShowOAuthModal(true)}
               />
             ) : (
@@ -444,7 +635,7 @@ export default function App() {
                 onAddActivityToCalendar={(act) => {
                   handleAddEvent({
                     title: act.title,
-                    date: '2026-09-06',
+                    date: new Date().toISOString().split('T')[0],
                     startTime: '18:00',
                     endTime: '19:00',
                     location: 'Home / Outdoors',
@@ -467,6 +658,9 @@ export default function App() {
             onOpenOAuthModal={() => setShowOAuthModal(true)}
             onOpenMLKitReport={() => setShowMLKitModal(true)}
             onOpenMoodHistory={() => setShowMoodModal(true)}
+            onOpenAdminModal={() => setShowFamilyAdminModal(true)}
+            onOpenParentGuide={() => setCurrentTab('bridge')}
+            onSignOut={handleSignOut}
             onUpdatePrivacy={(newPrivacy) => {
               setActiveMember((prev) => ({ ...prev, privacySettings: newPrivacy }));
             }}
@@ -502,26 +696,26 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
-              {/* FUTURE AI CONNECT: SAFE HAVEN (Highlight in Quick Menu) */}
+              {/* AI CONFIDANT CHAT */}
               <button
                 id="quick-menu-safeconnect-btn"
                 onClick={() => {
                   setShowQuickAddMenu(false);
-                  setShowSafeConnectModal(true);
+                  setCurrentTab('bridge');
                 }}
-                className="col-span-2 p-3.5 rounded-2xl bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 text-white text-left space-y-1 shadow hover:from-purple-950 hover:to-indigo-950 transition-all active:scale-95 border border-purple-400/30"
+                className="col-span-2 p-3.5 rounded-2xl bg-gradient-to-r from-purple-800 to-indigo-800 text-white text-left space-y-1 shadow hover:from-purple-900 hover:to-indigo-900 transition-all active:scale-95"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-bold text-xs text-amber-300">
-                    <ShieldAlert className="w-4 h-4" />
-                    <span>Future AI Connect (Safe Haven)</span>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Talk with AI Confidant</span>
                   </div>
-                  <span className="text-[9px] bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded font-semibold border border-amber-400/30">
-                    Harm Prevention
+                  <span className="text-[9px] bg-white/20 text-white px-2 py-0.5 rounded font-semibold">
+                    100% Private
                   </span>
                 </div>
                 <div className="text-[10px] text-purple-200">
-                  Scared of parents' reaction? Confess safely & coach parents to respond without harm.
+                  Chat freely about any feelings, questions, or stress in a safe space.
                 </div>
               </button>
 
@@ -742,12 +936,6 @@ export default function App() {
         onClose={() => setShowMLKitModal(false)}
       />
 
-      <CompetitionStoryModal
-        isOpen={showCompetitionStoryModal}
-        onClose={() => setShowCompetitionStoryModal(false)}
-        onApplyStepAction={handleApplyStoryStep}
-      />
-
       <SafeConnectBridgeModal
         isOpen={showSafeConnectModal}
         onClose={() => setShowSafeConnectModal(false)}
@@ -765,13 +953,17 @@ export default function App() {
       <FamilyAdminSetupModal
         isOpen={showFamilyAdminModal}
         onClose={() => setShowFamilyAdminModal(false)}
-        currentMembers={allMembers}
+        family={family}
+        allMembers={allMembers}
+        adminEmail={googleUserEmail || activeMember.calendar?.accountEmail}
+        adminName={activeMember.name}
         onAddMember={(newMember) => {
-          setAllMembers((prev) => [...prev, newMember]);
+          handleAddFamilyMember(newMember);
         }}
         onSwitchToFather={() => {
           const parent = allMembers.find((m) => m.role === 'Parent');
           if (parent) setActiveMember(parent);
+          setShowFamilyAdminModal(false);
         }}
       />
 
